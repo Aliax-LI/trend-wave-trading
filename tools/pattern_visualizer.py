@@ -189,11 +189,23 @@ class PatternVisualizer:
         """
         # 确定绘图范围
         if 'start' in pattern and 'end' in pattern:
-            start_idx = df.index.get_loc(pattern['start'])
-            end_idx = df.index.get_loc(pattern['end'])
+            # 检查索引是否存在
+            if pattern['start'] in df.index and pattern['end'] in df.index:
+                start_idx = df.index.get_loc(pattern['start'])
+                end_idx = df.index.get_loc(pattern['end'])
+            else:
+                # 如果索引不存在，使用整个数据范围
+                start_idx = 0
+                end_idx = len(df) - 1
         elif 'pole_start' in pattern and 'flag_end' in pattern:
-            start_idx = df.index.get_loc(pattern['pole_start'])
-            end_idx = df.index.get_loc(pattern['flag_end'])
+            # 检查索引是否存在
+            if pattern['pole_start'] in df.index and pattern['flag_end'] in df.index:
+                start_idx = df.index.get_loc(pattern['pole_start'])
+                end_idx = df.index.get_loc(pattern['flag_end'])
+            else:
+                # 如果索引不存在，使用整个数据范围
+                start_idx = 0
+                end_idx = len(df) - 1
         else:
             # 如果没有明确的开始和结束，使用整个数据范围
             start_idx = 0
@@ -694,8 +706,12 @@ class PatternVisualizer:
                 flag_end_price = pattern['flag_end_price']
             elif 'flag_end' in pattern and pattern['flag_end'] in plot_df.index:
                 # 使用旗面结束时的收盘价
-                flag_end_idx = plot_df.index.get_loc(pattern['flag_end'])
-                flag_end_price = plot_df['close'].iloc[flag_end_idx]
+                if pattern['flag_end'] in plot_df.index:
+                    flag_end_idx = plot_df.index.get_loc(pattern['flag_end'])
+                    flag_end_price = plot_df['close'].iloc[flag_end_idx]
+                else:
+                    # 如果索引不存在，使用最后一个收盘价
+                    flag_end_price = plot_df['close'].iloc[-1]
             else:
                 # 如果无法获取旗面结束价格，使用最后一个收盘价
                 flag_end_price = plot_df['close'].iloc[-1]
@@ -851,7 +867,7 @@ async def test_pattern_visualizer():
             total_klines += len(df)
             
             # 更新since参数，获取更早的数据
-            since = int(df.index[0].timestamp() * 1000) - 1
+            since = int(df.iloc[0]['timestamp']) - (1000 * 60 * 15 * limit)
         
         if not batch_df_data:
             print("获取数据失败，请检查网络连接或代理设置")

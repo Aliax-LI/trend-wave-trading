@@ -56,10 +56,14 @@ def detect_double_bottom_bull_flag(df: pd.DataFrame, max_gap_bars: int = 15) -> 
     # 遍历所有可能的双底和牛旗组合
     for db in double_bottoms:
         # 获取双底的颈线突破点
+        if db['neckline_breakout'] not in df.index:
+            continue
         db_neckline_breakout_idx = df.index.get_loc(db['neckline_breakout'])
         
         for bf in bull_flags:
             # 获取牛旗的旗杆起点
+            if bf['pole_start'] not in df.index:
+                continue
             bf_pole_start_idx = df.index.get_loc(bf['pole_start'])
             
             # 计算双底颈线突破点和牛旗旗杆起点之间的K线数量
@@ -133,6 +137,11 @@ def is_double_bottom_bull_flag_breakout(df: pd.DataFrame, pattern: Dict) -> Dict
     """
     # 使用牛旗部分的突破逻辑
     bull_flag = pattern['bull_flag']
+    
+    # 检查索引是否存在
+    if bull_flag['flag_end'] not in df.index:
+        return {'breakout': False}
+        
     flag_end_idx = df.index.get_loc(bull_flag['flag_end'])
     
     # 确保有后续数据

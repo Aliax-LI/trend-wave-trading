@@ -62,11 +62,19 @@ def detect_wedge(df: pd.DataFrame, min_length: int = 15, max_length: int = 50,
                 continue
             
             # 计算高点和低点的趋势线
-            high_indices = [df.index.get_loc(idx) - start_idx for idx, _ in pattern_highs]
-            high_values = [val for _, val in pattern_highs]
+            high_indices = []
+            high_values = []
+            for idx, val in pattern_highs:
+                if idx in df.index:
+                    high_indices.append(df.index.get_loc(idx) - start_idx)
+                    high_values.append(val)
             
-            low_indices = [df.index.get_loc(idx) - start_idx for idx, _ in pattern_lows]
-            low_values = [val for _, val in pattern_lows]
+            low_indices = []
+            low_values = []
+            for idx, val in pattern_lows:
+                if idx in df.index:
+                    low_indices.append(df.index.get_loc(idx) - start_idx)
+                    low_values.append(val)
             
             # 如果点数不足以进行线性回归，则跳过
             if len(high_indices) < 2 or len(low_indices) < 2:
@@ -225,6 +233,9 @@ def _find_local_extrema(df: pd.DataFrame, window: int = 3) -> Tuple[List[Tuple],
     if highs:
         current_high = highs[0]
         for i in range(1, len(highs)):
+            # 检查索引是否存在
+            if highs[i][0] not in df.index or current_high[0] not in df.index:
+                continue
             idx_diff = df.index.get_loc(highs[i][0]) - df.index.get_loc(current_high[0])
             if idx_diff > window:  # 如果与当前高点距离足够远
                 filtered_highs.append(current_high)
@@ -237,6 +248,9 @@ def _find_local_extrema(df: pd.DataFrame, window: int = 3) -> Tuple[List[Tuple],
     if lows:
         current_low = lows[0]
         for i in range(1, len(lows)):
+            # 检查索引是否存在
+            if lows[i][0] not in df.index or current_low[0] not in df.index:
+                continue
             idx_diff = df.index.get_loc(lows[i][0]) - df.index.get_loc(current_low[0])
             if idx_diff > window:  # 如果与当前低点距离足够远
                 filtered_lows.append(current_low)

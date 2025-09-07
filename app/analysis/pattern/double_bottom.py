@@ -214,6 +214,10 @@ def is_double_bottom_breakout(df: pd.DataFrame, pattern: Dict) -> Dict:
     返回:
         Dict: 突破信息，包含方向、强度等
     """
+    # 检查索引是否存在
+    if pattern['neckline_breakout'] not in df.index:
+        return {'breakout': False}
+    
     neckline_breakout_idx = df.index.get_loc(pattern['neckline_breakout'])
     
     # 确保有后续数据

@@ -183,6 +183,10 @@ def is_narrow_range_breakout(df: pd.DataFrame, pattern: Dict) -> Dict:
     返回:
         Dict: 突破信息，包含方向、强度等
     """
+    # 检查索引是否存在
+    if pattern['end'] not in df.index:
+        return {'breakout': False}
+    
     pattern_end_idx = df.index.get_loc(pattern['end'])
     
     # 确保有后续数据
