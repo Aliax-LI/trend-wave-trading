@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <style>
+            .candlestick.bull {
+                fill: #26a69a;
+                stroke: #26a69a;
+            }
+            .candlestick.bear {
+                fill: #ef5350;
+                stroke: #ef5350;
+            }
+            .wick {
+                stroke-width: 1;
+            }
+            .grid-line {
+                stroke: #e0e0e0;
+                stroke-dasharray: 2, 2;
+            }
+            .pattern-line {
+                stroke: #007bff;
+                stroke-width: 2;
+                stroke-dasharray: 4, 4;
+                fill: none;
+            }
+            .resistance-line {
+                stroke: #ff6b6b;
+                stroke-width: 2;
+                stroke-dasharray: 4, 4;
+                fill: none;
+            }
+            .label-text {
+                font-family: 'Arial', 'SimHei', sans-serif;
+                font-size: 14px;
+                fill: #333;
+                font-weight: bold;
+            }
+            .title-text {
+                font-family: 'Arial', 'SimHei', sans-serif;
+                font-size: 24px;
+                font-weight: bold;
+                fill: #2c3e50;
+                text-anchor: middle;
+            }
+            .arrow-line {
+                stroke: #2c3e50;
+                stroke-width: 1.5;
+            }
+            .arrow-head {
+                fill: #2c3e50;
+            }
+            .highlight-zone {
+                fill: rgba(255, 107, 107, 0.08);
+                stroke: none;
+            }
+            .bear-arrow {
+                stroke: #ef5350;
+                stroke-width: 2;
+            }
+            .bear-arrow-head {
+                fill: #ef5350;
+            }
+        </style>
+    </defs>
+    
+    <!-- Title -->
+    <text x="400" y="40" class="title-text">双顶熊旗</text>
+
+    <!-- Grid Lines -->
+    <g class="grid">
+        <line x1="50" y1="100" x2="750" y2="100" class="grid-line"></line>
+        <line x1="50" y1="200" x2="750" y2="200" class="grid-line"></line>
+        <line x1="50" y1="300" x2="750" y2="300" class="grid-line"></line>
+        <line x1="50" y1="400" x2="750" y2="400" class="grid-line"></line>
+    </g>
+
+    <!-- Candlesticks -->
+    <g id="candlesticks">
+        <!-- Flagpole (下跌) -->
+        <line x1="100" y1="100" x2="100" y2="200" class="wick candlestick bear"></line>
+        <rect x="95" y="150" width="10" height="50" class="candlestick bear"></rect>
+
+        <line x1="130" y1="200" x2="130" y2="280" class="wick candlestick bear"></line>
+        <rect x="125" y="200" width="10" height="70" class="candlestick bear"></rect>
+
+        <line x1="160" y1="280" x2="160" y2="380" class="wick candlestick bear"></line>
+        <rect x="155" y="280" width="10" height="90" class="candlestick bear"></rect>
+
+        <!-- Flag Formation - Double Top inside (反弹整理) -->
+        <line x1="190" y1="350" x2="190" y2="320" class="wick candlestick bull"></line>
+        <rect x="185" y="320" width="10" height="20" class="candlestick bull"></rect>
+
+        <!-- First Top -->
+        <line x1="220" y1="340" x2="220" y2="280" class="wick candlestick bull"></line>
+        <rect x="215" y="290" width="10" height="50" class="candlestick bull"></rect>
+        <line x1="250" y1="310" x2="250" y2="285" class="wick candlestick bear"></line>
+        <rect x="245" y="285" width="10" height="20" class="candlestick bear"></rect>
+
+        <!-- Trough -->
+        <line x1="280" y1="330" x2="280" y2="310" class="wick candlestick bear"></line>
+        <rect x="275" y="310" width="10" height="15" class="candlestick bear"></rect>
+        <line x1="310" y1="325" x2="310" y2="300" class="wick candlestick bull"></line>
+        <rect x="305" y="305" width="10" height="20" class="candlestick bull"></rect>
+
+        <!-- Second Top -->
+        <line x1="340" y1="320" x2="340" y2="282" class="wick candlestick bull"></line>
+        <rect x="335" y="288" width="10" height="32" class="candlestick bull"></rect>
+        <line x1="370" y1="310" x2="370" y2="290" class="wick candlestick bear"></line>
+        <rect x="365" y="295" width="10" height="15" class="candlestick bear"></rect>
+
+        <!-- Before Breakdown -->
+        <line x1="400" y1="320" x2="400" y2="300" class="wick candlestick bear"></line>
+        <rect x="395" y="300" width="10" height="15" class="candlestick bear"></rect>
+
+        <!-- Breakdown Candle -->
+        <line x1="430" y1="320" x2="430" y2="420" class="wick candlestick bear"></line>
+        <rect x="425" y="320" width="10" height="90" class="candlestick bear"></rect>
+
+        <!-- Continuation -->
+        <line x1="460" y1="420" x2="460" y2="450" class="wick candlestick bear"></line>
+        <rect x="455" y="420" width="10" height="25" class="candlestick bear"></rect>
+    </g>
+
+    <!-- Pattern Lines and Labels -->
+    <!-- Flagpole Label -->
+    <path d="M120,150 Q 150,130 180,150" stroke="#2c3e50" stroke-width="1.5" fill="none" />
+    <line x1="150" y1="130" x2="158" y2="250" class="arrow-line"></line>
+    <text x="100" y="120" class="label-text">1. 旗杆 (下跌)</text>
+
+    <!-- Flag/Double Top Area -->
+    <rect x="175" y="275" width="250" height="80" class="highlight-zone" />
+    <line x1="220" y1="280" x2="340" y2="282" class="resistance-line" /> <!-- Top resistance -->
+    <line x1="185" y1="350" x2="395" y2="330" class="pattern-line" /> <!-- Bottom support -->
+
+    <text x="180" y="265" class="label-text">2. 旗形反弹 (内含双顶)</text>
+    <text x="220" y="275" class="label-text">顶 1</text>
+    <text x="335" y="275" class="label-text">顶 2</text>
+
+    <!-- Breakdown Label -->
+    <circle cx="430" cy="350" r="15" fill="none" stroke="#ef5350" stroke-width="2" />
+    <line x1="445" y1="350" x2="520" y2="350" class="bear-arrow"></line>
+    <polygon points="520,345 530,350 520,355" class="bear-arrow-head" />
+    <text x="535" y="355" class="label-text">3. 向下突破</text>
+
+    <!-- Continuation -->
+    <path d="M500,400 C 520,420, 560,420, 580,400" fill="none" stroke="#2c3e50" stroke-width="1.5"/>
+    <line x1="540" y1="420" x2="465" y2="430" class="arrow-line" />
+    <text x="500" y="460" class="label-text">4. 趋势继续</text>
+
+    <!-- Predicted Price Movement -->
+    <line x1="460" y1="440" x2="650" y2="480" stroke="#ff4444" stroke-width="3" stroke-dasharray="8,4" opacity="0.8" />
+    <text x="620" y="490" class="label-text" style="font-size: 12px; fill: #ff4444;">预测走势</text>
+
+    <!-- Stop Loss Zone (Shadow) -->
+    <rect x="430" y="100" width="320" height="180" fill="rgba(76, 175, 80, 0.15)" stroke="none" />
+    <line x1="420" y1="280" x2="750" y2="280" stroke="#4caf50" stroke-width="2" stroke-dasharray="6,3" />
+    <text x="680" y="275" class="label-text" style="font-size: 12px; fill: #4caf50;">止损区域</text>
+    <text x="680" y="290" class="label-text" style="font-size: 10px; fill: #666;">旗形上轨阻力</text>
+
+    <!-- Take Profit Zones (Shadows) -->
+    <rect x="430" y="420" width="320" height="60" fill="rgba(229, 57, 53, 0.12)" stroke="none" />
+    <line x1="550" y1="480" x2="750" y2="480" stroke="#e53935" stroke-width="2" stroke-dasharray="6,3" />
+    <text x="650" y="475" class="label-text" style="font-size: 12px; fill: #e53935;">止盈区域1</text>
+    <text x="650" y="490" class="label-text" style="font-size: 10px; fill: #666;">旗杆高度1:1</text>
+
+    <rect x="430" y="480" width="320" height="20" fill="rgba(198, 40, 40, 0.18)" stroke="none" />
+    <line x1="600" y1="495" x2="750" y2="495" stroke="#c62828" stroke-width="2" stroke-dasharray="6,3" />
+    <text x="680" y="490" class="label-text" style="font-size: 12px; fill: #c62828;">止盈区域2</text>
+    <text x="680" y="505" class="label-text" style="font-size: 10px; fill: #666;">旗杆高度1.5:1</text>
+
+    <!-- Optimal Entry Point -->
+    <circle cx="430" cy="370" r="8" fill="#ffc107" stroke="#ff8f00" stroke-width="3" />
+    <circle cx="430" cy="370" r="12" fill="none" stroke="#ffc107" stroke-width="2" stroke-dasharray="3,2" />
+    <text x="445" y="365" class="label-text" style="font-size: 12px; fill: #ff8f00;">最佳卖出点</text>
+    <text x="445" y="380" class="label-text" style="font-size: 10px; fill: #666;">突破确认后</text>
+
+    <!-- Price Action Notes -->
+    <text x="600" y="100" class="label-text" style="font-size: 12px; fill: #666;">特征:</text>
+    <text x="600" y="120" class="label-text" style="font-size: 11px; fill: #666;">• 下跌旗杆</text>
+    <text x="600" y="135" class="label-text" style="font-size: 11px; fill: #666;">• 反弹整理</text>
+    <text x="600" y="150" class="label-text" style="font-size: 11px; fill: #666;">• 双顶阻力</text>
+    <text x="600" y="165" class="label-text" style="font-size: 11px; fill: #666;">• 向下突破</text>
+
+    <!-- Risk/Reward Analysis -->
+    <text x="450" y="100" class="label-text" style="font-size: 12px; fill: #666;">风险收益分析:</text>
+    <text x="450" y="120" class="label-text" style="font-size: 11px; fill: #666;">• 风险: 突破点到止损位</text>
+    <text x="450" y="135" class="label-text" style="font-size: 11px; fill: #666;">• 收益: 突破点到止盈位</text>
+    <text x="450" y="150" class="label-text" style="font-size: 11px; fill: #666;">• 推荐风险收益比: 1:2</text>
+</svg>
