@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>价格行为学：三推楔形形态图解</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .chart-container {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            padding: 2rem;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16/10;
+        }
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+        .candlestick.bull {
+            fill: #26a69a;
+            stroke: #26a69a;
+        }
+        .candlestick.bear {
+            fill: #ef5350;
+            stroke: #ef5350;
+        }
+        .wick {
+            stroke-width: 1;
+        }
+        .grid-line {
+            stroke: #e0e0e0;
+            stroke-dasharray: 2, 2;
+        }
+        .wedge-line {
+            stroke: #ff6b35;
+            stroke-width: 3;
+            fill: none;
+        }
+        .push-line {
+            stroke: #2196f3;
+            stroke-width: 2;
+            stroke-dasharray: 4, 4;
+            fill: none;
+        }
+        .support-line {
+            stroke: #4caf50;
+            stroke-width: 2;
+            stroke-dasharray: 6, 3;
+            fill: none;
+        }
+        .label-text {
+            font-size: 14px;
+            fill: #333;
+            font-weight: bold;
+        }
+        .title-text {
+            font-size: 24px;
+            font-weight: bold;
+            fill: #2c3e50;
+            text-anchor: middle;
+        }
+        .arrow-line {
+            stroke: #2c3e50;
+            stroke-width: 1.5;
+        }
+        .arrow-head {
+            fill: #2c3e50;
+        }
+        .wedge-zone {
+            fill: rgba(255, 107, 53, 0.08);
+            stroke: none;
+        }
+        .push-zone-1 {
+            fill: rgba(33, 150, 243, 0.08);
+            stroke: none;
+        }
+        .push-zone-2 {
+            fill: rgba(33, 150, 243, 0.06);
+            stroke: none;
+        }
+        .push-zone-3 {
+            fill: rgba(33, 150, 243, 0.04);
+            stroke: none;
+        }
+        .breakdown-arrow {
+            stroke: #ef5350;
+            stroke-width: 3;
+        }
+        .breakdown-arrow-head {
+            fill: #ef5350;
+        }
+        .push-number {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #2196f3;
+        }
+    </style>
+</head>
+<body>
+    <div class="chart-container">
+        <svg viewBox="0 0 800 500">
+            <!-- Title -->
+            <text x="400" y="40" class="title-text">三推楔形</text>
+
+            <!-- Grid Lines -->
+            <g class="grid">
+                <line x1="50" y1="100" x2="750" y2="100" class="grid-line"></line>
+                <line x1="50" y1="200" x2="750" y2="200" class="grid-line"></line>
+                <line x1="50" y1="300" x2="750" y2="300" class="grid-line"></line>
+                <line x1="50" y1="400" x2="750" y2="400" class="grid-line"></line>
+            </g>
+
+            <!-- Candlesticks -->
+            <g id="candlesticks">
+                <!-- Initial trend -->
+                <line x1="80" y1="400" x2="80" y2="360" class="wick candlestick bull"></line>
+                <rect x="75" y="360" width="10" height="30" class="candlestick bull"></rect>
+
+                <!-- First Push Down -->
+                <line x1="110" y1="380" x2="110" y2="320" class="wick candlestick bear"></line>
+                <rect x="105" y="340" width="10" height="40" class="candlestick bear"></rect>
+
+                <line x1="140" y1="350" x2="140" y2="280" class="wick candlestick bear"></line>
+                <rect x="135" y="300" width="10" height="50" class="candlestick bear"></rect>
+
+                <line x1="170" y1="310" x2="170" y2="250" class="wick candlestick bear"></line>
+                <rect x="165" y="270" width="10" height="40" class="candlestick bear"></rect>
+
+                <!-- First Rebound -->
+                <line x1="200" y1="280" x2="200" y2="220" class="wick candlestick bull"></line>
+                <rect x="195" y="230" width="10" height="45" class="candlestick bull"></rect>
+
+                <line x1="230" y1="240" x2="230" y2="200" class="wick candlestick bull"></line>
+                <rect x="225" y="205" width="10" height="30" class="candlestick bull"></rect>
+
+                <!-- Second Push Down (weaker) -->
+                <line x1="260" y1="220" x2="260" y2="260" class="wick candlestick bear"></line>
+                <rect x="255" y="235" width="10" height="25" class="candlestick bear"></rect>
+
+                <line x1="290" y1="250" x2="290" y2="290" class="wick candlestick bear"></line>
+                <rect x="285" y="265" width="10" height="25" class="candlestick bear"></rect>
+
+                <line x1="320" y1="280" x2="320" y2="310" class="wick candlestick bear"></line>
+                <rect x="315" y="285" width="10" height="20" class="candlestick bear"></rect>
+
+                <!-- Second Rebound -->
+                <line x1="350" y1="295" x2="350" y2="240" class="wick candlestick bull"></line>
+                <rect x="345" y="250" width="10" height="40" class="candlestick bull"></rect>
+
+                <line x1="380" y1="260" x2="380" y2="210" class="wick candlestick bull"></line>
+                <rect x="375" y="220" width="10" height="35" class="candlestick bull"></rect>
+
+                <!-- Third Push Down (weakest) -->
+                <line x1="410" y1="235" x2="410" y2="265" class="wick candlestick bear"></line>
+                <rect x="405" y="245" width="10" height="15" class="candlestick bear"></rect>
+
+                <line x1="440" y1="255" x2="440" y2="285" class="wick candlestick bear"></line>
+                <rect x="435" y="265" width="10" height="15" class="candlestick bear"></rect>
+
+                <line x1="470" y1="275" x2="470" y2="305" class="wick candlestick bear"></line>
+                <rect x="465" y="285" width="10" height="15" class="candlestick bear"></rect>
+
+                <line x1="500" y1="295" x2="500" y2="315" class="wick candlestick bear"></line>
+                <rect x="495" y="300" width="10" height="12" class="candlestick bear"></rect>
+
+                <!-- False breakdown and reversal -->
+                <line x1="530" y1="310" x2="530" y2="250" class="wick candlestick bull"></line>
+                <rect x="525" y="260" width="10" height="45" class="candlestick bull"></rect>
+
+                <!-- Strong reversal -->
+                <line x1="560" y1="270" x2="560" y2="180" class="wick candlestick bull"></line>
+                <rect x="555" y="190" width="10" height="75" class="candlestick bull"></rect>
+
+                <line x1="590" y1="200" x2="590" y2="130" class="wick candlestick bull"></line>
+                <rect x="585" y="140" width="10" height="55" class="candlestick bull"></rect>
+            </g>
+
+            <!-- Wedge Pattern Lines -->
+            <!-- Upper wedge line (resistance) -->
+            <line x1="110" y1="320" x2="500" y2="300" class="wedge-line" />
+            
+            <!-- Lower wedge line (support) -->
+            <line x1="170" y1="250" x2="500" y2="315" class="wedge-line" />
+
+            <!-- Wedge zone -->
+            <polygon points="110,320 170,250 500,300 500,315" class="wedge-zone" />
+
+            <!-- Push zones highlighting -->
+            <rect x="100" y="240" width="100" height="140" class="push-zone-1" />
+            <rect x="250" y="200" width="100" height="110" class="push-zone-2" />
+            <rect x="400" y="230" width="110" height="85" class="push-zone-3" />
+
+            <!-- Push indicators and labels -->
+            <circle cx="140" cy="300" r="20" fill="none" stroke="#2196f3" stroke-width="2" />
+            <text x="135" y="305" class="push-number">1</text>
+            <text x="120" y="190" class="label-text">第一推</text>
+            <text x="115" y="205" class="label-text" style="font-size: 11px; fill: #666;">(最强)</text>
+
+            <circle cx="290" cy="270" r="18" fill="none" stroke="#2196f3" stroke-width="2" />
+            <text x="285" y="275" class="push-number">2</text>
+            <text x="270" y="160" class="label-text">第二推</text>
+            <text x="265" y="175" class="label-text" style="font-size: 11px; fill: #666;">(减弱)</text>
+
+            <circle cx="440" cy="285" r="16" fill="none" stroke="#2196f3" stroke-width="2" />
+            <text x="436" y="290" class="push-number">3</text>
+            <text x="420" y="360" class="label-text">第三推</text>
+            <text x="415" y="375" class="label-text" style="font-size: 11px; fill: #666;">(最弱)</text>
+
+            <!-- Wedge pattern labels -->
+            <text x="200" y="120" class="label-text">收敛楔形</text>
+            <text x="180" y="135" class="label-text" style="font-size: 11px; fill: #666;">(动能逐渐衰竭)</text>
+
+            <!-- Reversal indication -->
+            <circle cx="560" cy="230" r="20" fill="none" stroke="#26a69a" stroke-width="3" />
+            <line x1="580" y1="230" x2="640" y2="230" class="breakdown-arrow"></line>
+            <polygon points="640,225 650,230 640,235" class="breakdown-arrow-head" />
+            <text x="655" y="235" class="label-text">强势反转</text>
+
+            <!-- Pattern characteristics -->
+            <text x="50" y="470" class="label-text" style="font-size: 12px; fill: #666;">特征: 三次推动力度递减，形成收敛楔形，通常预示趋势反转</text>
+
+            <!-- Technical analysis notes -->
+            <text x="600" y="100" class="label-text" style="font-size: 12px; fill: #666;">技术要点:</text>
+            <text x="600" y="120" class="label-text" style="font-size: 11px; fill: #666;">• 推动力逐渐减弱</text>
+            <text x="600" y="135" class="label-text" style="font-size: 11px; fill: #666;">• 楔形收敛结构</text>
+            <text x="600" y="150" class="label-text" style="font-size: 11px; fill: #666;">• 成交量萎缩</text>
+            <text x="600" y="165" class="label-text" style="font-size: 11px; fill: #666;">• 反转信号确认</text>
+
+            <!-- Divergence indicator -->
+            <line x1="140" y1="420" x2="440" y2="440" class="arrow-line" stroke-dasharray="3,3" />
+            <text x="250" y="450" class="label-text" style="font-size: 11px; fill: #666;">价格新低 vs 动能背离</text>
+        </svg>
+    </div>
+</body>
+</html>
