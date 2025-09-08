@@ -140,13 +140,13 @@ narrow_ranges = detect_narrow_range_after_retracement(df, lookback_period=50, na
 
 系统支持识别的各种技术分析形态的可视化图表示例，帮助理解每种形态的特征和交易含义：
 
-### 1. 双顶牛旗形态
-![双顶牛旗](examples/double_top_bull_flag.svg)
+### 1. 双底牛旗形态
+![双底牛旗](examples/double_bottom_bull_flag.svg)
 
 **特征说明：**
 - 强劲上涨旗杆后出现旗形整理
-- 整理过程中形成双顶阻力结构
-- 成交量在整理期间逐渐萎缩
+- 整理过程中形成双底支撑结构
+- 双底形成后突破颈线阻力
 - 向上突破旗形上轨确认继续上涨
 
 
