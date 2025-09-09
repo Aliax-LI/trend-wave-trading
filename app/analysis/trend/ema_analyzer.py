@@ -119,16 +119,16 @@ class EMAAnalyzer:
             latest_price = window_data['close'].iloc[-1]
             
             # 判断多头排列还是空头排列
-            if (latest_price > latest_ema_21 > latest_ema_55 > latest_ema_144):
+            if latest_price > latest_ema_21 > latest_ema_55 > latest_ema_144:
                 alignment = "多头排列"
                 strength = 1.0
-            elif (latest_price < latest_ema_21 < latest_ema_55 < latest_ema_144):
+            elif latest_price < latest_ema_21 < latest_ema_55 < latest_ema_144:
                 alignment = "空头排列"
                 strength = 1.0
-            elif (latest_ema_21 > latest_ema_55 > latest_ema_144):
+            elif latest_ema_21 > latest_ema_55 > latest_ema_144:
                 alignment = "偏多排列"
                 strength = 0.7
-            elif (latest_ema_21 < latest_ema_55 < latest_ema_144):
+            elif latest_ema_21 < latest_ema_55 < latest_ema_144:
                 alignment = "偏空排列"
                 strength = 0.7
             else:

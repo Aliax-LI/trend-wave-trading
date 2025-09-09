@@ -206,7 +206,7 @@ class ExchangeClient:
                         if ohlcvc_list and len(ohlcvc_list) > 0:
                             # 获取最新的OHLCVC数据
                             ohlcvc_data = ohlcvc_list[-1]  # 取最后一条数据
-                            logger.debug(f"最新ohlcvc数据：{ohlcvc_data}")
+                            # logger.debug(f"最新ohlcvc数据：{ohlcvc_data}")
                             self.cache_ohlcvc[symbol] = ohlcvc_data
                             
                             # 如果有回调函数，调用它

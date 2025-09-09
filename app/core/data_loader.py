@@ -30,9 +30,6 @@ class OhlcvDataLoader:
         """
         if symbol != self.symbol:
             return
-            
-        logger.info(f"收到 {symbol}-{timeframe} 的新数据: {ohlcvc_data}")
-        
         # 找到对应的缓存key
         cache_key = None
         for k, v in self.watch_timeframes.items():
@@ -73,7 +70,7 @@ class OhlcvDataLoader:
                         if new_timestamp == current_df.index[-1]:
                             # 更新最后一行数据（同一时间戳的实时更新）
                             current_df.iloc[-1] = new_df.iloc[0]
-                            logger.debug(f"更新了 {cache_key} 的最后一行数据 (时间戳: {new_timestamp})")
+                            # logger.debug(f"更新了 {cache_key} 的最后一行数据 (时间戳: {new_timestamp})")
                         else:
                             # 添加新的一行数据
                             combined_df = pd.concat([current_df, new_df])
