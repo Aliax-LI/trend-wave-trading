@@ -7,3 +7,5 @@ tzlocal>=2.1
 ccxt>=2.0.0
 scikit-learn>=0.24.0
 ta>=0.7.0
+tenacity~=9.1.2
+TA-Lib>=0.4.25

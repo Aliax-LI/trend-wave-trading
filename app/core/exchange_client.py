@@ -2,10 +2,12 @@ import asyncio
 from datetime import datetime, timezone
 import tzlocal
 import ccxt.pro as ccxt
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, Union, Tuple
 from datetime import datetime, timedelta
 from loguru import logger
 import pandas as pd
+import time
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 class ExchangeClient:
 
@@ -52,7 +54,7 @@ class ExchangeClient:
         if 'api_key' in config.keys():
             self.config['apiKey'] = config['api_key']
         if 'api_secret' in config.keys():
-            self.config['apiSecret'] = config['api_secret']
+            self.config['secret'] = config['api_secret']
         if 'passphrase' in config.keys():
             self.config['password'] = config['passphrase']
         logger.info(f"初始化交易所: {exchange_name}, 时区：{self.local_tz.key}")
@@ -196,14 +198,24 @@ class ExchangeClient:
                         self.exchange.watch_trades(symbol), 
                         timeout=30.0
                     )
-                    # 获取最新数据，格式为：['timestamp', 'open', 'high', 'low', 'close', 'volume', 'count']
-                    ohlcvc_data = self.exchange.build_ohlcvc(trades, timeframe)[0]
-                    logger.debug(f"最新ohlcvc数据：{ohlcvc_data}")
-                    self.cache_ohlcvc[symbol] = ohlcvc_data
                     
-                    # 如果有回调函数，调用它
-                    if callback:
-                        await callback(symbol, ohlcvc_data)
+                    if trades and len(trades) > 0:
+                        # 构建OHLCVC数据，格式为：[timestamp, open, high, low, close, volume, count]
+                        ohlcvc_list = self.exchange.build_ohlcvc(trades, timeframe)
+                        
+                        if ohlcvc_list and len(ohlcvc_list) > 0:
+                            # 获取最新的OHLCVC数据
+                            ohlcvc_data = ohlcvc_list[-1]  # 取最后一条数据
+                            logger.debug(f"最新ohlcvc数据：{ohlcvc_data}")
+                            self.cache_ohlcvc[symbol] = ohlcvc_data
+                            
+                            # 如果有回调函数，调用它
+                            if callback:
+                                await callback(symbol, timeframe, ohlcvc_data)
+                        else:
+                            logger.debug(f"没有构建到有效的OHLCVC数据: {symbol}")
+                    else:
+                        logger.debug(f"没有接收到有效的交易数据: {symbol}")
                         
                 except asyncio.TimeoutError:
                     logger.warning(f"观测 {symbol} 超时，重新尝试...")
@@ -338,163 +350,482 @@ class ExchangeClient:
 
     # ================================ 私有操作 ================================
 
-    async def convert_contract_coin(self, convert_type: int, symbol: str, amount: str, price: str,
-                                    op_type : str ="open"):
-        await self.exchange.load_markets()
-        formatted_amount = self.exchange.amount_to_precision(symbol, amount)
-        formatted_price = self.exchange.price_to_precision(symbol, price)
-        print(formatted_amount, formatted_price)
-        # 币张转换
-        resp_data = await self.exchange.publicGetPublicConvertContractCoin(
-            {
+    def _validate_trading_params(self, symbol: str, price: float, amount: float, 
+                                side: str) -> Tuple[bool, str]:
+        """验证交易参数
+        
+        Args:
+            symbol: 交易对符号
+            price: 价格
+            amount: 数量
+            side: 交易方向
+            
+        Returns:
+            Tuple[bool, str]: (是否有效, 错误信息)
+        """
+        if not symbol or not isinstance(symbol, str):
+            return False, "交易对符号不能为空且必须是字符串"
+            
+        if price <= 0:
+            return False, "价格必须大于0"
+            
+        if amount <= 0:
+            return False, "数量必须大于0"
+            
+        if side not in ['buy', 'sell', 'long', 'short']:
+            return False, "交易方向必须是 'buy', 'sell', 'long', 'short' 之一"
+            
+        return True, ""
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, ccxt.NetworkError, ccxt.RequestTimeout))
+    )
+    async def convert_contract_coin(self, convert_type: int, symbol: str, amount: Union[str, float], 
+                                   price: Union[str, float], op_type: str = "open") -> Optional[str]:
+        """币张转换
+        
+        Args:
+            convert_type: 转换类型 (1: 币转张, 2: 张转币)
+            symbol: 交易对符号
+            amount: 数量
+            price: 价格
+            op_type: 操作类型 (open/close)
+            
+        Returns:
+            Optional[str]: 转换后的数量，失败返回None
+        """
+        # 参数验证
+        if convert_type not in [1, 2]:
+            raise ValueError("转换类型必须是1(币转张)或2(张转币)")
+            
+        if not symbol:
+            raise ValueError("交易对符号不能为空")
+            
+        # 转换为字符串格式
+        amount_str = str(amount) if isinstance(amount, (int, float)) else amount
+        price_str = str(price) if isinstance(price, (int, float)) else price
+        
+        # 验证数值
+        try:
+            float(amount_str)
+            float(price_str)
+        except ValueError:
+            raise ValueError("金额和价格必须是有效数字")
+            
+        try:
+            resp_data = await self.exchange.publicGetPublicConvertContractCoin({
                 "type": convert_type,
                 "instId": symbol,
-                "sz": amount,
-                "px": price,
+                "sz": amount_str,
+                "px": price_str,
                 'opType': op_type,
+            })
+            
+            if not resp_data or not resp_data.get('data'):
+                raise ValueError("币张转换失败: 无有效响应数据")
+                
+            result = resp_data.get('data')[0].get('sz')
+            logger.debug(f"币张转换成功: {amount_str} -> {result}")
+            return result
+            
+        except (ValueError, TypeError) as e:
+            logger.error(f"币张转换失败: {e}")
+            return None
 
-            }
-        )
-        return resp_data.get('data')[0].get('sz')
-
-    async def get_max_leverage(self, symbol: str):
-        await self.exchange.load_markets()
-        symbol_market = self.exchange.market(symbol)
-        return symbol_market['limits']['leverage']['max']
-
-
-    async def set_leverage(self, symbol: str, leverage = None):
-        if leverage is None:
-            leverage = await self.get_max_leverage(symbol)
-        leverage_resp = await self.exchange.set_leverage(leverage, symbol=symbol)
-        logger.info(f"🔧 设置杠杆倍数: {leverage}x, 响应：: {leverage_resp}")
-
-    async def create_limit_order(self, symbol: str, price: float, amount: float, signal_type, take_profit, stop_loss):
-        pos_side = "long" if signal_type == "buy" else "short"
-        # 订单参数
-        order_params = {
-            'tdMode': 'isolated',  # 逐仓保证金模式
-            'posSide': pos_side,  # 持仓方向
-            'attachAlgoOrds': [  # 附加止盈止损算法订单
-                {
-                    'attachAlgoClOrdId': "first_tp_trigger",  # 止盈止损策略ID
-                    'tpTriggerPx': take_profit,  # 第一止盈触发价
-                    'tpOrdPx': -1,  # 止盈委托价(-1表示市价)
-                },
-                {
-                    'attachAlgoClOrdId': "auto_tp_sl_trigger", # 止盈止损策略ID
-                    'tpTriggerPx': take_profit,  # 第二止盈触发价
-                    'tpOrdPx': -1,  # 止盈委托价(-1表示市价)
-                    'slTriggerPx': stop_loss,  # 止损触发价
-                    'slOrdPx': -1  # 止损委托价(-1表示市价)
-                }
-            ]
-        }
-        # 创建带止盈止损的限价单
-        order_response = await self.exchange.create_order(
-            symbol=symbol,
-            type="limit",
-            side=signal_type,
-            amount=amount,
-            price=price,
-            params=order_params
-        )
-        logger.info(f"🔧 创建带止盈止损的限价单，响应: {order_response}")
-
-    async def modify_tp_sl(self, symbol: str, take_profit, stop_loss, algo_order_id: str= "auto_tp_sl_trigger"):
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, ccxt.NetworkError, ccxt.RequestTimeout))
+    )
+    async def get_max_leverage(self, symbol: str) -> Optional[float]:
+        """获取最大杠杆倍数
+        
+        Args:
+            symbol: 交易对符号
+            
+        Returns:
+            Optional[float]: 最大杠杆倍数，失败返回None
         """
-        修改止盈止损价
-        """
-        modify_params = {
-            'instId': symbol,
-            'algoClOrdId': algo_order_id,
-            'newTpTriggerPx': take_profit,  # 新止盈触发价
-            'newTpOrdPx': -1,  # 市价止盈
-            'newSlTriggerPx': stop_loss,  # 新止损触发价
-            'newSlOrdPx': -1,  # 市价止损
-        }
-        # 调用OKX的修改算法订单API
-        modify_response = await self.exchange.privatePostTradeAmendAlgos(modify_params)
-        logger.info(f"🔧 修改止盈止损价，响应: {modify_response}")
-
-    async def get_funding_rate(self, symbol):
-        rate_response = await self.exchange.fetch_funding_rate(symbol)
-        funding_rate = rate_response.get('info', {}).get('fundingRate')
-
-        if funding_rate:
-            funding_rate_percent = float(funding_rate) * 100
-            logger.info(f"📊 {symbol} 资金费率: {funding_rate_percent:.4f}%")
-            return float(funding_rate)
-        else:
-            logger.warning(f"⚠️ 无法获取 {symbol} 的资金费率")
+        if not symbol:
+            raise ValueError("交易对符号不能为空")
+            
+        try:
+            await self.exchange.load_markets()
+            symbol_market = self.exchange.market(symbol)
+            
+            if not symbol_market:
+                raise ValueError(f"找不到交易对市场信息: {symbol}")
+                
+            max_leverage = symbol_market.get('limits', {}).get('leverage', {}).get('max')
+            
+            if max_leverage is None:
+                raise ValueError(f"无法获取 {symbol} 的最大杠杆信息")
+                
+            logger.debug(f"{symbol} 最大杠杆倍数: {max_leverage}x")
+            return float(max_leverage)
+            
+        except ValueError as e:
+            logger.error(f"获取最大杠杆失败 {symbol}: {e}")
             return None
 
 
-
-
-async def data_callback(symbol: str, ohlcvc_data):
-    """示例回调函数"""
-    logger.info(f"收到 {symbol} 的新数据: {ohlcvc_data}")
-
-async def main():
-    """优化后的使用示例"""
-    exchange_client = ExchangeClient("okx")
-    
-    try:
-        # 获取OHLCV数据
-        ohlcv_data = await exchange_client.get_ohlcv_data(
-            symbol='BTC/USDT:USDT', 
-            timeframe='15m', 
-            limit=450  # 最大限制为100
-        )
-        logger.info(f"获取到 {len(ohlcv_data)} 条OHLCV数据")
-        # 获取历史数据
-        historical_data = await exchange_client.fetch_historical_data(
-            symbol='BTC/USDT:USDT', 
-            timeframe='15m', 
-            days=1
-        )
-        logger.info(f"获取到 {len(historical_data)} 条历史数据")
-        # 启动观测任务（非阻塞）
-        task_id1 = exchange_client.start_watch_ohlcvc(
-            symbol='BTC/USDT:USDT', 
-            timeframe='15m', 
-            callback=data_callback
-        )
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, ccxt.NetworkError, ccxt.RequestTimeout))
+    )
+    async def set_leverage(self, symbol: str, leverage: Optional[float] = None) -> Optional[float]:
+        """设置杠杆倍数
         
-        task_id2 = exchange_client.start_watch_ohlcvc(
-            symbol='ETH/USDT:USDT', 
-            timeframe='5m'
-        )
-        
-        logger.info(f"启动了观测任务: {task_id1}, {task_id2}")
-        
-        # 查看任务状态
-        status = exchange_client.get_watch_status()
-        logger.info(f"任务状态: {status}")
-        
-        # 运行一段时间
-        await asyncio.sleep(30)
-        
-        # 停止特定任务
-        await exchange_client.stop_watch_ohlcvc('BTC/USDT:USDT', '15m')
-        # 再运行一段时间
-        await asyncio.sleep(15)
-    except KeyboardInterrupt:
-        logger.info("收到中断信号，正在停止...")
-    except Exception as e:
-        logger.error(f"发生错误: {e}")
-    finally:
-        # 停止所有任务并关闭连接
-        await exchange_client.close_exchange()
+        Args:
+            symbol: 交易对符号
+            leverage: 杠杆倍数，None时使用最大杠杆
+            
+        Returns:
+            Optional[float]: 实际设置的杠杆倍数，失败返回None
+        """
+        if not symbol:
+            raise ValueError("交易对符号不能为空")
+            
+        try:
+            if leverage is None:
+                leverage = await self.get_max_leverage(symbol)
+                if leverage is None:
+                    raise ValueError("无法获取最大杠杆倍数")
+            else:
+                # 验证杠杆倍数范围
+                max_leverage = await self.get_max_leverage(symbol)
+                if max_leverage and leverage > max_leverage:
+                    logger.warning(f"请求的杠杆倍数 {leverage}x 超过最大值 {max_leverage}x，使用最大值")
+                    leverage = max_leverage
+                    
+            leverage_resp = await self.exchange.set_leverage(leverage, symbol=symbol)
+            logger.info(f"🔧 设置杠杆倍数: {leverage}x, 响应: {leverage_resp}")
+            return leverage
+                        
+        except ValueError as e:
+            logger.error(f"设置杠杆失败 {symbol}: {e}")
+            return None
 
-async def main2():
-    exchange_client = ExchangeClient("okx")
-    resp_data = await exchange_client.convert_contract_coin(1, 'BTC-USD-SWAP', "10", "112072.1")
-    resp_data = exchange_client.get_max_leverage("BTC-USD-SWAP")
-    print(resp_data)
-    await exchange_client.close_exchange()
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, ccxt.NetworkError, ccxt.RequestTimeout))
+    )
+    async def fetch_position(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """查看持仓信息
+        
+        Args:
+            symbol: 交易对符号
+            
+        Returns:
+            Optional[Dict[str, Any]]: 持仓信息，失败返回None
+        """
+        if not symbol:
+            raise ValueError("交易对符号不能为空")
+            
+        try:
+            position_data = await self.exchange.fetch_position(symbol)
+            logger.debug(f"获取持仓信息成功: {symbol}")
+            return position_data
+                        
+        except ValueError as e:
+            logger.error(f"获取持仓信息失败 {symbol}: {e}")
+            return None
 
-if __name__ == '__main__':
-    asyncio.run(main2())
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, ccxt.NetworkError, ccxt.RequestTimeout))
+    )
+    async def create_limit_order(self, symbol: str, price: float, amount: float, side: str, 
+                                stop_loss: float, take_profit: float, leverage: Optional[float] = None) -> Optional[Dict[str, Any]]:
+        """创建带止盈止损的限价单
+        
+        Args:
+            symbol: 交易对符号
+            price: 限价单价格
+            amount: 交易金额(USDT)
+            side: 交易方向 ('buy'/'sell')
+            stop_loss: 止损价格
+            take_profit: 止盈价格
+            leverage: 杠杆倍数，None时使用最大杠杆
+            
+        Returns:
+            Optional[Dict[str, Any]]: 订单响应信息，失败返回None
+        """
+        # 参数验证
+        is_valid, error_msg = self._validate_trading_params(symbol, price, amount, side)
+        if not is_valid:
+            raise ValueError(error_msg)
+            
+        if stop_loss <= 0 or take_profit <= 0:
+            raise ValueError("止损价和止盈价必须大于0")
+            
+        # 验证止盈止损价格逻辑
+        if side == "buy":
+            if stop_loss >= price:
+                raise ValueError("买入订单的止损价必须小于限价单价格")
+            if take_profit <= price:
+                raise ValueError("买入订单的止盈价必须大于限价单价格")
+        else:  # sell
+            if stop_loss <= price:
+                raise ValueError("卖出订单的止损价必须大于限价单价格")
+            if take_profit >= price:
+                raise ValueError("卖出订单的止盈价必须小于限价单价格")
+        
+        try:
+            await self.exchange.load_markets()
+            
+            # 设置杠杆
+            actual_leverage = await self.set_leverage(symbol, leverage)
+            if actual_leverage is None:
+                raise ValueError("设置杠杆失败")
+            
+            # 计算购买币数
+            symbol_amount = round(actual_leverage * amount / price, 8)
+            formatted_price = self.exchange.price_to_precision(symbol, price)
+            
+            # 币张转换
+            contracts = await self.convert_contract_coin(1, symbol, str(symbol_amount), str(formatted_price))
+            if contracts is None:
+                raise ValueError("币张转换失败")
+                
+            pos_side = "long" if side == "buy" else "short"
+            algo_order_id = f"ATS{int(time.time() * 1000)}"
+            # 创建订单参数
+            order_params = {
+                'tdMode': 'cross',  # 全仓保证金模式
+                'posSide': pos_side,  # 持仓方向
+                'attachAlgoOrds': [{  # 附加止盈止损算法订单
+                    'attachAlgoClOrdId': algo_order_id, # 唯一止盈止损策略ID
+                    'tpTriggerPx': self.exchange.price_to_precision(symbol, take_profit),  # 止盈触发价
+                    'tpOrdPx': -1,  # 止盈委托价(-1表示市价)
+                    'slTriggerPx': self.exchange.price_to_precision(symbol, stop_loss),  # 止损触发价
+                    'slOrdPx': -1  # 止损委托价(-1表示市价)
+                }]
+            }
+            
+            order_response = await self.exchange.create_order(
+                symbol=symbol,
+                type="limit",
+                side=side,
+                amount=float(contracts),
+                price=float(formatted_price),
+                params=order_params
+            )
+            order_id = order_response['id']
+            logger.info(f"🔧 创建带止盈止损的限价单成功:")
+            logger.info(f"交易对: {symbol}")
+            logger.info(f"方向: {side} ({pos_side})")
+            logger.info(f"价格: {formatted_price}")
+            logger.info(f"合约数量: {contracts}")
+            logger.info(f"杠杆: {actual_leverage}x")
+            logger.info(f"止损: {stop_loss}")
+            logger.info(f"止盈: {take_profit}")
+            logger.info(f"订单ID: {order_id}, 止盈止损单ID: {algo_order_id}")
+            logger.debug(f"   订单响应: {order_response}")
+            
+            return order_id, algo_order_id
+                        
+        except ValueError as e:
+            logger.error(f"创建限价单失败 {symbol}: {e}")
+            return None
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, ccxt.NetworkError, ccxt.RequestTimeout))
+    )
+    async def modify_tp_sl(self, symbol: str, take_profit: float, stop_loss: float,
+                          algo_order_id: str = "auto_tp_sl_trigger") -> Optional[Dict[str, Any]]:
+        """修改止盈止损价
+        
+        Args:
+            symbol: 交易对符号
+            take_profit: 新的止盈价格
+            stop_loss: 新的止损价格
+            algo_order_id: 算法订单ID
+            
+        Returns:
+            Optional[Dict[str, Any]]: 修改响应信息，失败返回None
+        """
+        # 参数验证
+        if not symbol:
+            raise ValueError("交易对符号不能为空")
+            
+        if take_profit <= 0 or stop_loss <= 0:
+            raise ValueError("止盈价和止损价必须大于0")
+            
+        if not algo_order_id:
+            raise ValueError("算法订单ID不能为空")
+            
+        try:
+            await self.exchange.load_markets()
+            
+            modify_params = {
+                'instId': symbol,
+                'algoClOrdId': algo_order_id,
+                'newTpTriggerPx': self.exchange.price_to_precision(symbol, take_profit),  # 新止盈触发价
+                'newTpOrdPx': -1,  # 市价止盈
+                'newSlTriggerPx': self.exchange.price_to_precision(symbol, stop_loss),  # 新止损触发价
+                'newSlOrdPx': -1,  # 市价止损
+            }
+            
+            modify_response = await self.exchange.privatePostTradeAmendAlgos(modify_params)
+            
+            if modify_response and modify_response.get('code') == '0':
+                logger.info(f"🔧 修改止盈止损价成功:")
+                logger.info(f"   交易对: {symbol}")
+                logger.info(f"   算法订单ID: {algo_order_id}")
+                logger.info(f"   新止盈价: {take_profit}")
+                logger.info(f"   新止损价: {stop_loss}")
+                logger.debug(f"   响应: {modify_response}")
+                return modify_response
+            else:
+                error_msg = modify_response.get('msg', '未知错误') if modify_response else '无响应数据'
+                raise ValueError(f"修改失败: {error_msg}")
+                        
+        except ValueError as e:
+            logger.error(f"修改止盈止损价失败 {symbol}: {e}")
+            return None
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, ccxt.NetworkError, ccxt.RequestTimeout))
+    )
+    async def get_funding_rate(self, symbol: str) -> Optional[float]:
+        """获取资金费率
+        
+        Args:
+            symbol: 交易对符号
+            
+        Returns:
+            Optional[float]: 资金费率(小数形式)，失败返回None
+        """
+        if not symbol:
+            raise ValueError("交易对符号不能为空")
+            
+        try:
+            rate_response = await self.exchange.fetch_funding_rate(symbol)
+            
+            if not rate_response:
+                raise ValueError("获取资金费率响应为空")
+                
+            # 尝试多种可能的数据路径
+            funding_rate = None
+            
+            # 路径1: info.fundingRate
+            if rate_response.get('info', {}).get('fundingRate'):
+                funding_rate = rate_response['info']['fundingRate']
+            # 路径2: fundingRate
+            elif rate_response.get('fundingRate'):
+                funding_rate = rate_response['fundingRate']
+            # 路径3: percentage (某些交易所可能返回百分比形式)
+            elif rate_response.get('percentage'):
+                funding_rate = rate_response['percentage'] / 100
+                
+            if funding_rate is not None:
+                try:
+                    funding_rate_float = float(funding_rate)
+                    funding_rate_percent = funding_rate_float * 100
+                    
+                    logger.info(f"📊 {symbol} 资金费率: {funding_rate_percent:.4f}%")
+                    return funding_rate_float
+                    
+                except (ValueError, TypeError):
+                    raise ValueError(f"无法转换资金费率为数字: {funding_rate}")
+            else:
+                raise ValueError("响应中未找到资金费率数据")
+                        
+        except ValueError as e:
+            logger.warning(f"⚠️ 无法获取 {symbol} 的资金费率: {e}")
+            return None
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, ccxt.NetworkError, ccxt.RequestTimeout))
+    )
+    async def cancel_order(self, order_id: str, symbol: str) -> bool:
+        """取消订单
+        
+        Args:
+            order_id: 订单ID
+            symbol: 交易对符号
+            
+        Returns:
+            bool: 是否成功取消
+        """
+        if not order_id or not symbol:
+            raise ValueError("订单ID和交易对符号不能为空")
+            
+        try:
+            cancel_response = await self.exchange.cancel_order(order_id, symbol)
+            logger.info(f"✅ 成功取消订单: {order_id} ({symbol})")
+            return True
+                        
+        except ValueError as e:
+            logger.error(f"取消订单失败 {order_id}: {e}")
+            return False
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, ccxt.NetworkError, ccxt.RequestTimeout))
+    )
+    async def get_account_balance(self, currency: str = "USDT") -> Optional[Dict[str, float]]:
+        """获取账户余额
+        
+        Args:
+            currency: 货币类型
+            
+        Returns:
+            Optional[Dict[str, float]]: 余额信息 {'free': 可用, 'used': 已用, 'total': 总计}
+        """
+        try:
+            balance = await self.exchange.fetch_balance()
+            
+            if currency in balance:
+                currency_balance = balance[currency]
+                result = {
+                    'free': float(currency_balance.get('free', 0)),
+                    'used': float(currency_balance.get('used', 0)),
+                    'total': float(currency_balance.get('total', 0))
+                }
+                logger.debug(f"账户余额 ({currency}): {result}")
+                return result
+            else:
+                logger.warning(f"未找到 {currency} 的余额信息")
+                return None
+                        
+        except ValueError as e:
+            logger.error(f"获取账户余额失败: {e}")
+            return None
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, ccxt.NetworkError, ccxt.RequestTimeout))
+    )
+    async def get_open_orders(self, symbol: Optional[str] = None) -> Optional[list]:
+        """获取未成交订单
+        
+        Args:
+            symbol: 交易对符号，None表示获取所有
+            
+        Returns:
+            Optional[list]: 订单列表
+        """
+        try:
+            orders = await self.exchange.fetch_open_orders(symbol)
+            logger.debug(f"获取到 {len(orders)} 个未成交订单")
+            return orders
+                        
+        except ValueError as e:
+            logger.error(f"获取未成交订单失败: {e}")
+            return None
 
