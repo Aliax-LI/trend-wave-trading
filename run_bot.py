@@ -262,16 +262,10 @@ async def main():
                        help="运行测试模式")
     
     args = parser.parse_args()
-    
-    if args.test:
-        # 测试模式
-        logger.info("🧪 运行测试模式")
-        from tests.test_strategy_data_system import test_strategy_data_system
-        await test_strategy_data_system()
-    else:
-        # 正常运行模式
-        runner = StrategyDataSystemRunner(args.config)
-        await runner.run()
+
+    runner = StrategyDataSystemRunner(args.config)
+    await runner.run()
+
 
 
 if __name__ == "__main__":
