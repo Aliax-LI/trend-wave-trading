@@ -156,12 +156,12 @@ class StrategyDataSystemRunner:
             
             for symbol, info in summary.items():
                 status_flags = []
-                if info['trend_ready']:
-                    status_flags.append("趋势✓")
-                if info['pattern_ready']:
-                    status_flags.append("形态✓")
-                if info['entry_ready']:
-                    status_flags.append("入场✓")
+                # if info['trend_ready']:
+                #     status_flags.append("趋势✓")
+                # if info['pattern_ready']:
+                #     status_flags.append("形态✓")
+                # if info['entry_ready']:
+                #     status_flags.append("入场✓")
                 
                 # 获取当前趋势分析
                 current_trend = self.strategy_service.get_current_trend_analysis(symbol)
