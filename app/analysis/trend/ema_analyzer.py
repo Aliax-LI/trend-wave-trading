@@ -10,7 +10,7 @@ from app.models.trend_types import TrendDirection, TrendPhase, TrendAnalysis
 class EMAAnalyzer:
     """EMA趋势分析器"""
     
-    def __init__(self, window_obs: int = 80):
+    def __init__(self, window_obs: int = 100):
         """
         初始化EMA分析器
         
@@ -102,7 +102,7 @@ class EMAAnalyzer:
     def analyze_ema_alignment(self, emas: Dict[str, pd.Series], 
                             window_data: pd.DataFrame) -> Tuple[str, float]:
         """
-        分析EMA排列状态
+        增强版EMA排列分析 - 考虑趋势方向、斜率和持续性
         
         Args:
             emas: EMA数据
@@ -113,28 +113,108 @@ class EMAAnalyzer:
         """
         try:
             # 获取最新的EMA值
-            latest_ema_21 = emas['ema_21'][-1]
-            latest_ema_55 = emas['ema_55'][-1]
-            latest_ema_144 = emas['ema_144'][-1]
-            latest_price = window_data['close'].iloc[-1]
+            latest_ema_21 = float(emas['ema_21'][-1])
+            latest_ema_55 = float(emas['ema_55'][-1])
+            latest_ema_144 = float(emas['ema_144'][-1])
+            latest_price = float(window_data['close'].iloc[-1])
             
-            # 判断多头排列还是空头排列
-            if latest_price > latest_ema_21 > latest_ema_55 > latest_ema_144:
-                alignment = "多头排列"
-                strength = 1.0
-            elif latest_price < latest_ema_21 < latest_ema_55 < latest_ema_144:
-                alignment = "空头排列"
-                strength = 1.0
-            elif latest_ema_21 > latest_ema_55 > latest_ema_144:
-                alignment = "偏多排列"
-                strength = 0.7
-            elif latest_ema_21 < latest_ema_55 < latest_ema_144:
-                alignment = "偏空排列"
-                strength = 0.7
+            # 计算EMA斜率 (最近5-10个周期的变化率)
+            slope_window = min(10, len(emas['ema_21']) - 1)
+            if slope_window >= 5:
+                ema21_slope = (emas['ema_21'][-1] - emas['ema_21'][-slope_window]) / slope_window
+                ema55_slope = (emas['ema_55'][-1] - emas['ema_55'][-slope_window]) / slope_window
+                ema144_slope = (emas['ema_144'][-1] - emas['ema_144'][-slope_window]) / slope_window
             else:
-                alignment = "混乱排列"
-                strength = 0.3
+                ema21_slope = ema55_slope = ema144_slope = 0
+            
+            # 计算排列持续性 (最近N个周期的排列稳定性)
+            consistency_window = min(20, len(emas['ema_21']))
+            bullish_count = 0  # 多头排列次数
+            bearish_count = 0  # 空头排列次数
+            
+            for i in range(1, consistency_window + 1):
+                try:
+                    p = float(window_data['close'].iloc[-i])
+                    e21 = float(emas['ema_21'][-i])
+                    e55 = float(emas['ema_55'][-i])
+                    e144 = float(emas['ema_144'][-i])
+                    
+                    if p > e21 > e55 > e144:
+                        bullish_count += 1
+                    elif p < e21 < e55 < e144:
+                        bearish_count += 1
+                except:
+                    continue
+            
+            # 计算持续性比例
+            consistency_ratio = max(bullish_count, bearish_count) / consistency_window
+            
+            # 判断基础排列状态
+            perfect_bull = latest_price > latest_ema_21 > latest_ema_55 > latest_ema_144
+            perfect_bear = latest_price < latest_ema_21 < latest_ema_55 < latest_ema_144
+            partial_bull = latest_ema_21 > latest_ema_55 > latest_ema_144
+            partial_bear = latest_ema_21 < latest_ema_55 < latest_ema_144
+            
+            # 计算综合强度 (0-1之间)
+            strength = 0.0
+            alignment = "混乱排列"
+            
+            if perfect_bull:
+                alignment = "完美多头排列"
+                # 基础强度
+                strength = 0.7
+                # 斜率加分 (所有EMA都向上)
+                if ema21_slope > 0 and ema55_slope > 0 and ema144_slope > 0:
+                    strength += 0.2
+                # 持续性加分
+                strength += consistency_ratio * 0.1
+                # EMA间距加分 (间距越大越强)
+                spacing_factor = min((latest_ema_21 - latest_ema_144) / latest_ema_144, 0.05) * 2
+                strength += spacing_factor
                 
+            elif perfect_bear:
+                alignment = "完美空头排列"
+                strength = 0.7
+                if ema21_slope < 0 and ema55_slope < 0 and ema144_slope < 0:
+                    strength += 0.2
+                strength += consistency_ratio * 0.1
+                spacing_factor = min((latest_ema_144 - latest_ema_21) / latest_ema_144, 0.05) * 2
+                strength += spacing_factor
+                
+            elif partial_bull:
+                alignment = "偏多排列"
+                strength = 0.4
+                if ema21_slope > 0 and ema55_slope > 0:
+                    strength += 0.15
+                strength += consistency_ratio * 0.1
+                # 价格位置调整
+                if latest_price > latest_ema_21:
+                    strength += 0.15
+                    
+            elif partial_bear:
+                alignment = "偏空排列"
+                strength = 0.4
+                if ema21_slope < 0 and ema55_slope < 0:
+                    strength += 0.15
+                strength += consistency_ratio * 0.1
+                if latest_price < latest_ema_21:
+                    strength += 0.15
+            else:
+                # 混乱排列 - 检查是否在转折中
+                if abs(ema21_slope) > abs(ema55_slope) and abs(ema21_slope) > abs(ema144_slope):
+                    if ema21_slope > 0:
+                        alignment = "可能转多"
+                        strength = 0.3
+                    else:
+                        alignment = "可能转空"
+                        strength = 0.3
+                else:
+                    alignment = "混乱排列"
+                    strength = 0.1
+            
+            # 强度限制在0-1之间
+            strength = max(0.0, min(1.0, strength))
+            
             return alignment, strength
             
         except Exception as e:
@@ -153,7 +233,7 @@ class EMAAnalyzer:
         """
         try:
             # 计算EMA之间的距离变化
-            window_size = min(10, len(emas['ema_21']) - 1)
+            window_size = min(20, len(emas['ema_21']) - 1)
             
             # 计算21-55之间的距离变化
             distance_21_55_recent = np.abs(emas['ema_21'][-window_size:] - emas['ema_55'][-window_size:])

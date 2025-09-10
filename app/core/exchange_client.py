@@ -708,6 +708,13 @@ class ExchangeClient:
         """
         if not symbol:
             raise ValueError("交易对符号不能为空")
+        
+        # 检查缓存 - 资金费率缓存5分钟
+        cache_key = f"funding_rate_{symbol}"
+        if hasattr(self, '_funding_rate_cache') and cache_key in self._funding_rate_cache:
+            cache_entry = self._funding_rate_cache[cache_key]
+            if (datetime.now() - cache_entry['timestamp']).total_seconds() < 300:  # 5分钟缓存
+                return cache_entry['rate']
             
         try:
             rate_response = await self.exchange.fetch_funding_rate(symbol)
@@ -731,9 +738,17 @@ class ExchangeClient:
             if funding_rate is not None:
                 try:
                     funding_rate_float = float(funding_rate)
-                    funding_rate_percent = funding_rate_float * 100
                     
-                    logger.info(f"📊 {symbol} 资金费率: {funding_rate_percent:.4f}%")
+                    # 更新缓存
+                    if not hasattr(self, '_funding_rate_cache'):
+                        self._funding_rate_cache = {}
+                    self._funding_rate_cache[cache_key] = {
+                        'rate': funding_rate_float,
+                        'timestamp': datetime.now()
+                    }
+                    
+                    # 只在debug模式下记录详细日志
+                    logger.debug(f"📊 {symbol} 资金费率: {funding_rate_float:.4%}")
                     return funding_rate_float
                     
                 except (ValueError, TypeError):

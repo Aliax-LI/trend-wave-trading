@@ -19,6 +19,9 @@ class OhlcvDataLoader:
             "admission": "1m"
         })
         self.window_obs = config.get("window_obs", 80)
+        self._watch_task_ids = []
+        
+        self._external_callbacks = {}
 
     async def ohlcvc_callback(self, symbol, timeframe, ohlcvc_data):
         """回调函数：处理实时OHLCVC数据更新
@@ -28,15 +31,13 @@ class OhlcvDataLoader:
             timeframe: 时间框架
             ohlcvc_data: OHLCVC数据 [timestamp, open, high, low, close, volume, count]
         """
-        if symbol != self.symbol:
+        if symbol != self.symbol or not ohlcvc_data or len(ohlcvc_data) < 6:
             return
-        # 找到对应的缓存key
-        cache_key = None
-        for k, v in self.watch_timeframes.items():
-            if v == timeframe:
-                cache_key = k
-                break
-                
+            
+        if not hasattr(self, '_timeframe_to_key_map'):
+            self._timeframe_to_key_map = {v: k for k, v in self.watch_timeframes.items()}
+        
+        cache_key = self._timeframe_to_key_map.get(timeframe)
         if cache_key is None:
             logger.warning(f"未找到时间框架 {timeframe} 对应的缓存key")
             return
@@ -46,45 +47,146 @@ class OhlcvDataLoader:
             return
             
         try:
-            if ohlcvc_data and len(ohlcvc_data) >= 6:
-                new_row_data = {
-                    'timestamp': ohlcvc_data[0],
-                    'open': float(ohlcvc_data[1]),
-                    'high': float(ohlcvc_data[2]), 
-                    'low': float(ohlcvc_data[3]),
-                    'close': float(ohlcvc_data[4]),
-                    'volume': float(ohlcvc_data[5])
-                }
-                
-                # 格式化数据
-                new_df = self.exchange_client.format_df([list(new_row_data.values())[:6]])
-                
-                if not new_df.empty:
-                    # 获取当前缓存的数据
-                    current_df = self.cache_ohlcv[cache_key]
-                    
-                    # 合并新数据
-                    if not current_df.empty:
-                        # 检查是否是同一时间戳的数据更新
-                        new_timestamp = new_df.index[0]
-                        if new_timestamp == current_df.index[-1]:
-                            # 更新最后一行数据（同一时间戳的实时更新）
-                            current_df.iloc[-1] = new_df.iloc[0]
-                            # logger.debug(f"更新了 {cache_key} 的最后一行数据 (时间戳: {new_timestamp})")
-                        else:
-                            # 添加新的一行数据
-                            combined_df = pd.concat([current_df, new_df])
-                            # 保持最近500条数据
-                            self.cache_ohlcv[cache_key] = combined_df.tail(500)
-                            logger.debug(f"添加了 {cache_key} 的新数据行，当前共 {len(self.cache_ohlcv[cache_key])} 条")
-                    else:
-                        # 如果当前缓存为空，直接设置新数据
-                        self.cache_ohlcv[cache_key] = new_df
-                        logger.debug(f"初始化了 {cache_key} 的缓存数据")
-                        
+            timestamp, open_val, high_val, low_val, close_val, volume_val = ohlcvc_data[:6]
+            
+            if not self._validate_ohlcv_data(open_val, high_val, low_val, close_val, volume_val):
+                logger.warning(f"数据验证失败: {symbol} {timeframe}")
+                return
+            new_row_data = {
+                'timestamp': timestamp,
+                'open': float(open_val),
+                'high': float(high_val), 
+                'low': float(low_val),
+                'close': float(close_val),
+                'volume': float(volume_val)
+            }
+            # 格式化数据
+            new_df = self.exchange_client.format_df([list(new_row_data.values())[:6]])
+            if not new_df.empty:
+                await self._update_cache_data(cache_key, new_df, timeframe)
         except Exception as e:
             logger.error(f"更新缓存数据时发生错误: {e}")
             logger.debug(f"原始ohlcvc数据: {ohlcvc_data}")
+
+    @staticmethod
+    def _validate_ohlcv_data(open_val, high_val, low_val, close_val, volume_val) -> bool:
+        """验证OHLCV数据的有效性
+        
+        Args:
+            open_val, high_val, low_val, close_val, volume_val: OHLCV值
+            
+        Returns:
+            bool: 数据是否有效
+        """
+        try:
+            o, h, l, c, v = float(open_val), float(high_val), float(low_val), float(close_val), float(volume_val)
+            # 基本数值验证
+            if any(x <= 0 for x in [o, h, l, c, v]):
+                return False
+            # OHLC逻辑验证
+            if not (l <= o <= h and l <= c <= h):
+                return False
+            return True
+        except (ValueError, TypeError):
+            return False
+    
+    async def _update_cache_data(self, cache_key: str, new_df: pd.DataFrame, timeframe: str):
+        """更新缓存数据
+        
+        Args:
+            cache_key: 缓存键
+            new_df: 新数据DataFrame
+            timeframe: 时间框架
+        """
+        current_df = self.cache_ohlcv[cache_key]
+        if not current_df.empty:
+            new_timestamp = new_df.index[0]
+            # 检查是否是同一时间戳的数据更新
+            if new_timestamp == current_df.index[-1]:
+                # 更新最后一行数据（同一时间戳的实时更新）
+                current_df.iloc[-1] = new_df.iloc[0]
+                logger.debug(f"更新了 {cache_key} 的最后一行数据 (时间戳: {new_timestamp})")
+            else:
+                # 添加新的一行数据
+                combined_df = pd.concat([current_df, new_df])
+                # 保持最近500条数据
+                self.cache_ohlcv[cache_key] = combined_df.tail(500)
+                logger.debug(f"添加了 {cache_key} 的新数据行，当前共 {len(self.cache_ohlcv[cache_key])} 条")
+                
+                # 优化5: 触发数据更新事件 (为策略服务预留接口)
+                await self._on_new_data_added(cache_key, timeframe, new_df.iloc[0])
+        else:
+            # 如果当前缓存为空，直接设置新数据
+            self.cache_ohlcv[cache_key] = new_df
+            logger.debug(f"初始化了 {cache_key} 的缓存数据")
+    
+    async def _on_new_data_added(self, cache_key: str, timeframe: str, new_row: pd.Series):
+        """新数据添加时的事件处理 (为扩展预留)
+        Args:
+            cache_key: 缓存键
+            timeframe: 时间框架
+            new_row: 新行数据
+        """
+        for callback_name, callback_func in self._external_callbacks.items():
+            try:
+                if asyncio.iscoroutinefunction(callback_func):
+                    await callback_func(self.symbol, timeframe, cache_key, new_row)
+                else:
+                    callback_func(self.symbol, timeframe, cache_key, new_row)
+            except Exception as e:
+                logger.error(f"外部回调函数 {callback_name} 执行失败: {e}")
+    
+    def register_callback(self, name: str, callback_func):
+        """注册外部回调函数
+        
+        Args:
+            name: 回调函数名称
+            callback_func: 回调函数，签名为 func(symbol, timeframe, cache_key, new_row)
+        """
+        self._external_callbacks[name] = callback_func
+        logger.info(f"✅ 注册外部回调函数: {name}")
+    
+    def unregister_callback(self, name: str):
+        """注销外部回调函数
+        
+        Args:
+            name: 回调函数名称
+        """
+        if name in self._external_callbacks:
+            del self._external_callbacks[name]
+            logger.info(f"🗑️ 注销外部回调函数: {name}")
+        else:
+            logger.warning(f"⚠️ 回调函数 {name} 不存在")
+    
+    def get_data_statistics(self) -> dict:
+        """获取数据统计信息
+        
+        Returns:
+            dict: 各时间框架的数据统计
+        """
+        stats = {}
+        for cache_key, timeframe in self.watch_timeframes.items():
+            data = self.cache_ohlcv.get(cache_key)
+            if data is not None and not data.empty:
+                stats[cache_key] = {
+                    'timeframe': timeframe,
+                    'data_count': len(data),
+                    'latest_time': data.index[-1].isoformat() if len(data) > 0 else None,
+                    'latest_price': float(data['close'].iloc[-1]) if len(data) > 0 else None,
+                    'price_range': {
+                        'high': float(data['high'].max()),
+                        'low': float(data['low'].min())
+                    } if len(data) > 0 else None
+                }
+            else:
+                stats[cache_key] = {
+                    'timeframe': timeframe,
+                    'data_count': 0,
+                    'latest_time': None,
+                    'latest_price': None,
+                    'price_range': None
+                }
+        return stats
 
     async def init_ohlcv(self):
         try:
@@ -110,8 +212,6 @@ class OhlcvDataLoader:
     async def watch_ohlcv(self):
         """启动OHLCV数据监控"""
         self.is_running = True
-        self._watch_task_ids = []  # 存储观测任务ID
-        
         logger.info("✅ 开始数据监控")
         
         try:

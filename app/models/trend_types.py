@@ -10,6 +10,18 @@ class TrendDirection(Enum):
     SIDEWAYS = "sideways"
     WEAK_DOWNTREND = "weak_downtrend"
     STRONG_DOWNTREND = "strong_downtrend"
+    
+    @property
+    def chinese_name(self) -> str:
+        """获取中文名称"""
+        chinese_names = {
+            "strong_uptrend": "强势上升",
+            "weak_uptrend": "弱势上升", 
+            "sideways": "横盘震荡",
+            "weak_downtrend": "弱势下降",
+            "strong_downtrend": "强势下降"
+        }
+        return chinese_names.get(self.value, self.value)
 
 
 class TrendPhase(Enum):
@@ -18,6 +30,17 @@ class TrendPhase(Enum):
     ACCELERATION = "acceleration"  # 趋势加速
     MATURITY = "maturity"  # 趋势成熟
     EXHAUSTION = "exhaustion"  # 趋势衰竭
+    
+    @property
+    def chinese_name(self) -> str:
+        """获取中文名称"""
+        chinese_names = {
+            "beginning": "起始期",
+            "acceleration": "加速期",
+            "maturity": "成熟期",
+            "exhaustion": "衰竭期"
+        }
+        return chinese_names.get(self.value, self.value)
 
 
 @dataclass

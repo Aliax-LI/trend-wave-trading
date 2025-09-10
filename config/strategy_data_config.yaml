@@ -1,0 +1,91 @@
+# 数字货币日内交易策略数据配置
+
+# 交易所配置
+exchange:
+  name: "okx"
+  config:
+    api_key: your_api_key
+    api_secret: your_api_secret
+    passphrase: your_passphrase
+    sandbox: false
+    httpProxy: "http://127.0.0.1:7890"  # 可选代理
+    options:
+      defaultType: "swap"  # 永续合约
+      OHLCVLimit: 100
+
+# 监控币种
+symbols:
+  - "BTC/USDT:USDT"
+  - "ETH/USDT:USDT"
+  - "SOL/USDT:USDT"
+
+# 时间周期配置
+timeframes:
+  trend_filter: "30m"      # 趋势过滤 - 30分钟
+  signal_main: "15m"      # 主信号生成 - 15分钟
+  entry_timing: "5m"      # 入场时机 - 5分钟
+
+# 数据加载器配置
+data_loader:
+  window_obs: 200                    # 观测窗口大小
+  max_cache_length: 500              # 最大缓存长度
+  init_data_timeout: 60              # 初始化数据超时时间(秒)
+
+# 监控配置
+monitoring:
+  # 资金费率监控
+  funding_rate:
+    check_interval: 300              # 检查间隔(秒) - 5分钟
+    cache_duration: 300              # 缓存时间(秒) - 5分钟
+    high_threshold: 0.001            # 高费率阈值 - 0.1%
+    extreme_threshold: 0.002         # 极高费率阈值 - 0.2%
+  
+  # 价格监控
+  price_monitoring:
+    breakout_threshold: 0.005        # 突破阈值 - 0.5%
+    volume_spike_ratio: 2.0          # 成交量异常倍数
+    price_level_tolerance: 0.002     # 价格位容忍度 - 0.2%
+  
+  # 系统健康监控
+  system_health:
+    status_check_interval: 30        # 状态检查间隔(秒)
+    cleanup_interval: 3600           # 清理间隔(秒) - 1小时
+    max_price_level_age: 24          # 价格位最大存活时间(小时)
+
+# 策略回调配置
+strategy_callbacks:
+  enable_trend_callback: true        # 启用趋势变化回调
+  enable_pattern_callback: true      # 启用形态更新回调
+  enable_entry_callback: true        # 启用入场信号回调
+
+# 日志配置
+logging:
+  level: "INFO"                      # 日志级别
+  file_rotation: "1 day"             # 日志轮转
+  file_retention: "7 days"           # 日志保留时间
+  enable_debug_logs: false           # 是否启用调试日志
+
+# 风险管理配置
+risk_management:
+  # ATR计算
+  atr_period: 14                     # ATR计算周期
+  
+  # 数据就绪要求
+  min_data_requirements:
+    trend_analysis: 144              # 趋势分析最少需要144条数据(EMA144)
+    pattern_analysis: 200            # 形态分析最少需要200条数据
+    entry_signal: 50                 # 入场信号最少需要50条数据
+
+# 性能优化配置
+performance:
+  # 缓存配置
+  enable_data_cache: true            # 启用数据缓存
+  cache_cleanup_interval: 3600       # 缓存清理间隔(秒)
+  
+  # 并发配置
+  max_concurrent_requests: 10        # 最大并发请求数
+  request_timeout: 30                # 请求超时时间(秒)
+  
+  # 内存优化
+  memory_limit_mb: 500               # 内存使用限制(MB)
+  auto_cleanup_enabled: true         # 自动清理过期数据
